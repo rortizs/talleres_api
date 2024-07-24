@@ -1,6 +1,7 @@
 const ApiModel = require("../models/apiModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const keys = require("../config/keys");
 
 const UsuariosController = {
   getUsuarios: (req, res) => {
@@ -100,8 +101,8 @@ const UsuariosController = {
       }
 
       const token = jwt.sign(
-        { id: user.idUsuarios, email: user.email },
-        "secret",
+        { id: user.idUsuarios, email: user.email, rol: "usuario" },
+        keys.secretOrKey,
         {
           expiresIn: "1h",
         }

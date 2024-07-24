@@ -1,6 +1,7 @@
 const ClientesModel = require("../models/clientesModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const keys = require("../config/keys");
 
 const ClientesController = {
   getClientes: (req, res) => {
@@ -158,8 +159,8 @@ const ClientesController = {
       }
 
       const token = jwt.sign(
-        { id: cliente.idClientes, email: cliente.email },
-        "secret",
+        { id: cliente.idClientes, email: cliente.email, rol: "cliente" },
+        keys.secretOrKey,
         {
           expiresIn: "1h",
         }
@@ -171,11 +172,12 @@ const ClientesController = {
 
   getOsByIdClientes: (req, res) => {
     const { id } = req.params;
-
-    ClientesModel.getAllOsByClient(id, (err, os) =>{
+    console.log("ID del cliente:", id); // Añade logs para depuración
+    console.log("Token JWT:", req.headers.authorization); // Añade logs para depuración
+    ClientesModel.getAllOsByClient(id, (err, os) => {
       if (err) return res.status(500).send(err);
       res.status(200).send({ message: "Ordenes de servicio", result: os });
-    })
+    });
   },
 };
 
