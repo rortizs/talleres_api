@@ -20,6 +20,14 @@ const ClientesModel = {
     });
   },
 
+  getClienteByEmail: (email, callback) => {
+    const query = `SELECT * FROM  clientes WHERE email = ? LIMIT 1`;
+    db.query(query, [email], (err, result) => {
+      if (err) return callback(erro, null);
+      return callback(null, result[0]);
+    });
+  },
+
   add: (table, data, callback) => {
     const query = `INSERT INTO ?? SET ?`;
     db.query(query, [table, data], (err, result) => {
@@ -87,6 +95,7 @@ const ClientesModel = {
       });
     });
   },
+
 };
 
 module.exports = ClientesModel;

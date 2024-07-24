@@ -1,8 +1,8 @@
 const ClientesModel = require("../models/clientesModel");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const ClientesController = {
-  
   getClientes: (req, res) => {
     const { id, search, perPage = 20, page = 0 } = req.query;
     const start = page ? perPage * page : 0;
@@ -132,6 +132,50 @@ const ClientesController = {
         });
       });
     });
+  },
+
+  login: (req, res) => {
+    const { email, password } = req.body;
+
+    ClientesModel.getClienteByEmail(email, (err, cliente) => {
+      if (err) return res.status(500).send(err);
+      // Add logging
+      console.log("Cliente: ", cliente);
+      console.log("Password from request: ", password);
+      console.log("Stored hash: ", cliente.senha);
+      console.log(
+        "Password match: ",
+        bcrypt.compareSync(password, cliente.senha)
+      );
+
+      if (
+        !cliente ||
+        typeof password !== "string" ||
+        typeof cliente.senha !== "string" ||
+        !bcrypt.compareSync(password, cliente.senha)
+      ) {
+        return res.status(401).send({ message: "Credenciales incorrectas" });
+      }
+
+      const token = jwt.sign(
+        { id: cliente.idClientes, email: cliente.email },
+        "secret",
+        {
+          expiresIn: "1h",
+        }
+      );
+
+      res.status(200).send({ message: "Login exitoso", token });
+    });
+  },
+
+  getOsByIdClientes: (req, res) => {
+    const { id } = req.params;
+
+    ClientesModel.getAllOsByClient(id, (err, os) =>{
+      if (err) return res.status(500).send(err);
+      res.status(200).send({ message: "Ordenes de servicio", result: os });
+    })
   },
 };
 
