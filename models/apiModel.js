@@ -25,7 +25,6 @@ const ApiModel = {
     });
   },
 
-  
   searchUsuario: (search, callback) => {
     const query = `SELECT * FROM usuarios WHERE nome LIKE ? AND situacao = 1 LIMIT 5`;
     db.query(query, [`%${search}%`], (err, result) => {

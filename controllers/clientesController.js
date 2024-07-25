@@ -141,13 +141,13 @@ const ClientesController = {
     ClientesModel.getClienteByEmail(email, (err, cliente) => {
       if (err) return res.status(500).send(err);
       // Add logging
-      console.log("Cliente: ", cliente);
-      console.log("Password from request: ", password);
-      console.log("Stored hash: ", cliente.senha);
-      console.log(
-        "Password match: ",
-        bcrypt.compareSync(password, cliente.senha)
-      );
+      //console.log("Cliente: ", cliente);
+      //console.log("Password from request: ", password);
+      //console.log("Stored hash: ", cliente.senha);
+      //console.log(
+      //  "Password match: ",
+      //  bcrypt.compareSync(password, cliente.senha)
+      //);
 
       if (
         !cliente ||
@@ -177,6 +177,24 @@ const ClientesController = {
     ClientesModel.getAllOsByClient(id, (err, os) => {
       if (err) return res.status(500).send(err);
       res.status(200).send({ message: "Ordenes de servicio", result: os });
+    });
+  },
+
+  getAllComprasByClientes_id: (req, res) => {
+    const { id } = req.params;
+    ClientesModel.getAllComprasByClientes_id(id, (err, compras) => {
+      if (err) return res.status(500(err));
+      res.status(200).send({ message: "Compras del cliente", result: compras });
+    });
+  },
+
+  getAllCobranzasByClientes_id: (req, res) => {
+    const { id } = req.params;
+    ClientesModel.getAllCobranzasByClientes_id(id, (err, cobranzas) => {
+      if (err) return res.status(500(err));
+      res
+        .status(200)
+        .send({ message: "Cobranzas del cliente", result: cobranzas });
     });
   },
 };

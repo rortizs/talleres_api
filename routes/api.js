@@ -58,6 +58,16 @@ router.get(
   passport.authenticate("jwt-cliente", { session: false }),
   ClientesController.getOsByIdClientes
 );
+router.get(
+  "/clientes/compras/:id",
+  passport.authenticate("jwt-cliente", { session: false }),
+  ClientesController.getAllComprasByClientes_id
+);
+router.get(
+  "/clientes/cobranzas/:id",
+  passport.authenticate("jwt-cliente", { session: false }),
+  ClientesController.getAllCobranzasByClientes_id
+);
 router.post("/clientes/login", ClientesController.login);
 
 module.exports = router;

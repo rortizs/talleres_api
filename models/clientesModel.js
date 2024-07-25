@@ -96,6 +96,21 @@ const ClientesModel = {
     });
   },
 
+  getAllCobranzasByClientes_id: (id, callback) => {
+    const query = `SELECT * FROM cobrancas WHERE clientes_id = ?`;
+    db.query(query, [id], (err, result) => {
+      if (err) return callback(err, null);
+      return callback(null, result);
+    });
+  },
+
+  getAllComprasByClientes_id: (id, callback) => {
+    const query = `SELECT * FROM vendas WHERE clientes_id = ?`;
+    db.query(query, [id], (err, result) => {
+      if (err) return callback(err, null);
+      return callback(null, result);
+    });
+  },
 };
 
 module.exports = ClientesModel;
