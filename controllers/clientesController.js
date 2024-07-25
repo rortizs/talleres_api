@@ -4,6 +4,38 @@ const jwt = require("jsonwebtoken");
 const keys = require("../config/keys");
 
 const ClientesController = {
+  /**
+   * @swagger
+   * components:
+   *   schemas:
+   *     Cliente:
+   *       type: object
+   *       properties:
+   *         idClientes:
+   *           type: integer
+   *         nomeCliente:
+   *           type: string
+   *         email:
+   *           type: string
+   *         senha:
+   *           type: string
+   */
+
+  /**
+   * @swagger
+   * /clientes:
+   *   get:
+   *     summary: Obtiene la lista de clientes
+   *     responses:
+   *       200:
+   *         description: Lista de clientes
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 $ref: '#/components/schemas/Cliente'
+   */
   getClientes: (req, res) => {
     const { id, search, perPage = 20, page = 0 } = req.query;
     const start = page ? perPage * page : 0;
@@ -47,6 +79,23 @@ const ClientesController = {
     }
   },
 
+  /**
+   * @swagger
+   * /clientes:
+   *   post:
+   *     summary: Crea un nuevo cliente
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/Cliente'
+   *     responses:
+   *       201:
+   *         description: Cliente añadido con éxito
+   *       500:
+   *         description: Error en el servidor
+   */
   createCliente: (req, res) => {
     const { nomeCliente, documento, senha, ...otherData } = req.body;
     const senhaCliente = senha || documento.replace(/[^\w\s]/gi, "");
@@ -74,6 +123,31 @@ const ClientesController = {
     });
   },
 
+  /**
+   * @swagger
+   * /clientes/{id}:
+   *   put:
+   *     summary: Actualiza un cliente existente
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/Cliente'
+   *     responses:
+   *       200:
+   *         description: Cliente editado con éxito
+   *       404:
+   *         description: Cliente no encontrado
+   *       500:
+   *         description: Error en el servidor
+   */
   updateCliente: (req, res) => {
     const { id } = req.params;
     const { senha, ...otherData } = req.body;
@@ -99,6 +173,25 @@ const ClientesController = {
     });
   },
 
+  /**
+   * @swagger
+   * /clientes/{id}:
+   *   delete:
+   *     summary: Elimina un cliente existente
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Cliente eliminado con éxito
+   *       404:
+   *         description: Cliente no encontrado
+   *       500:
+   *         description: Error en el servidor
+   */
   deleteCliente: (req, res) => {
     const { id } = req.params;
 
@@ -135,6 +228,30 @@ const ClientesController = {
     });
   },
 
+  /**
+   * @swagger
+   * /clientes/login:
+   *   post:
+   *     summary: Autentica un cliente
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               email:
+   *                 type: string
+   *               password:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Login exitoso
+   *       401:
+   *         description: Credenciales incorrectas
+   *       500:
+   *         description: Error en el servidor
+   */
   login: (req, res) => {
     const { email, password } = req.body;
 
@@ -170,6 +287,49 @@ const ClientesController = {
     });
   },
 
+  /**
+   * @swagger
+   * /clientes/os/{id}:
+   *   get:
+   *     summary: Obtiene las órdenes de servicio de un cliente por ID
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Ordenes de servicio
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   idOs:
+   *                     type: integer
+   *                   descricaoProduto:
+   *                     type: string
+   *                   defeito:
+   *                     type: string
+   *                   observacoes:
+   *                     type: string
+   *                   dataInicial:
+   *                     type: string
+   *                     format: date-time
+   *                   dataFinal:
+   *                     type: string
+   *                     format: date-time
+   *                   valorTotal:
+   *                     type: number
+   *                     format: float
+   *       404:
+   *         description: Cliente no encontrado
+   *       500:
+   *         description: Error en el servidor
+   */
   getOsByIdClientes: (req, res) => {
     const { id } = req.params;
     console.log("ID del cliente:", id); // Añade logs para depuración
@@ -180,6 +340,42 @@ const ClientesController = {
     });
   },
 
+  /**
+   * @swagger
+   * /clientes/compras/{id}:
+   *   get:
+   *     summary: Obtiene todas las compras de un cliente por ID
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Compras del cliente
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   idCompra:
+   *                     type: integer
+   *                   descricaoProduto:
+   *                     type: string
+   *                   dataCompra:
+   *                     type: string
+   *                     format: date-time
+   *                   valorTotal:
+   *                     type: number
+   *                     format: float
+   *       404:
+   *         description: Cliente no encontrado
+   *       500:
+   *         description: Error en el servidor
+   */
   getAllComprasByClientes_id: (req, res) => {
     const { id } = req.params;
     ClientesModel.getAllComprasByClientes_id(id, (err, compras) => {
@@ -187,7 +383,43 @@ const ClientesController = {
       res.status(200).send({ message: "Compras del cliente", result: compras });
     });
   },
-
+  
+  /**
+   * @swagger
+   * /clientes/cobranzas/{id}:
+   *   get:
+   *     summary: Obtiene todas las cobranzas de un cliente por ID
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Cobranzas del cliente
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   idCobranza:
+   *                     type: integer
+   *                   descricaoCobranza:
+   *                     type: string
+   *                   dataCobranza:
+   *                     type: string
+   *                     format: date-time
+   *                   valorTotal:
+   *                     type: number
+   *                     format: float
+   *       404:
+   *         description: Cliente no encontrado
+   *       500:
+   *         description: Error en el servidor
+   */
   getAllCobranzasByClientes_id: (req, res) => {
     const { id } = req.params;
     ClientesModel.getAllCobranzasByClientes_id(id, (err, cobranzas) => {

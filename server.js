@@ -5,6 +5,7 @@ const server = http.createServer(app);
 const logger = require("morgan");
 const cors = require("cors");
 const passport = require("passport");
+const swaggerRouter = require("./swagger");
 
 /**Routes import */
 const apiRouter = require("./routes/api");
@@ -21,6 +22,9 @@ app.use(passport.initialize());
 require("./config/passport")(passport);
 app.disable("x-powered-by");
 app.set("PORT", PORT);
+
+// Swagger
+app.use("/api-docs", swaggerRouter);
 
 /** Calling Routes */
 app.use("/api/v1", apiRouter);
