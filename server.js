@@ -22,12 +22,13 @@ app.use(passport.initialize());
 require("./config/passport")(passport);
 app.disable("x-powered-by");
 app.set("PORT", PORT);
+app.use(express.static("public"));
 
-// Swagger
-app.use("/api-docs", swaggerRouter);
 
 /** Calling Routes */
 app.use("/api/v1", apiRouter);
+// Swagger
+app.use("/api-docs", swaggerRouter);
 
 server.listen(PORT, "192.168.1.29" || "localhost", function () {
   console.log(`Server running on port ${PORT}`);
