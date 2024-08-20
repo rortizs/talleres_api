@@ -3,6 +3,8 @@ const passport = require("passport");
 const router = express.Router();
 const UsuariosController = require("../controllers/usuariosController");
 const ClientesController = require("../controllers/clientesController");
+const authController = require("../middleware/authMiddleware");
+const authMiddleware = require("../middleware/authMiddleware");
 
 /**
  * @swagger
@@ -188,6 +190,33 @@ router.delete(
  *         description: Error en el servidor
  */
 router.post("/login", UsuariosController.login);
+
+/**
+ * @swagger
+ * /me:
+ *  get:
+ *   summary: Obtiene los detalles del usuario autenticado
+ *  tags: [Usuarios]
+ * responses:
+ *  200:
+ *  description: Detalles del usuario
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * properties:
+ * idUsuarios:
+ * type: integer
+ * nome:
+ * type: string
+ * email:
+ * type: string
+ * 401:
+ * description: No autorizado
+ * 500:
+ * description: Error en el servidor
+ */
+router.get("/me", authMiddleware, UsuariosController.getMe);
 
 /**
  * @swagger

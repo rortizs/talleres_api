@@ -35,6 +35,8 @@ const UsuariosController = {
     }
   },
 
+  //todo: getMe(){}
+
   createUsuario: (req, res) => {
     const { nome, email, senha, ...otherData } = req.body;
     const hashedPassword = bcrypt.hashSync(senha, 10);
@@ -108,7 +110,32 @@ const UsuariosController = {
         }
       );
 
-      res.status(200).send({ message: "Login exitoso", token });
+      res.status(200).send({
+        message: "Login exitoso",
+        token,
+        user: {
+          id: user.idUsuarios,
+          nome: user.nome,
+          email: user.email,
+          rol: "usuario",
+        },
+      });
+    });
+  },
+
+  getMe: (req, res) =>{
+    const userId = req.user.id;
+
+    ApiModel.getUserById(userId, (err, user)=>{
+      if(err) return res.status(500).send(err);
+      if(!user) return res.status(404).send({message: "Usuario no encontrado"});
+
+      res.status(200).send({
+        id: user.idUsuarios,
+        nome: user.nome,
+        email: user.email,
+        rol: "usuario"
+      });
     });
   },
 };
