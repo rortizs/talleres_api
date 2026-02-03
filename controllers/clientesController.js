@@ -38,16 +38,16 @@ const ClientesController = {
    */
   getClientes: (req, res) => {
     const { id, search, perPage = 20, page = 0 } = req.query;
-    const start = page ? perPage * page : 0;
+    const start = page ? parseInt(perPage) * parseInt(page) : 0;
 
     if (id) {
       ClientesModel.getById(id, (err, cliente) => {
-        if (err) return res.status(500).send(err);
+        if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
         if (!cliente)
           return res.status(404).send({ message: "Cliente no encontrado" });
 
         ClientesModel.getAllOsByClient(id, (err, os) => {
-          if (err) return res.status(500).send(err);
+          if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
           cliente.ordensServicos = os;
           res
             .status(200)
@@ -55,18 +55,15 @@ const ClientesController = {
         });
       });
     } else {
-      const where = search
-        ? `nomeCliente LIKE '%${search}%' OR documento LIKE '%${search}%' OR telefone LIKE '%${search}%' OR celular LIKE '%${search}%' OR email LIKE '%${search}%' OR contato LIKE '%${search}%'`
-        : "";
-
+      // Pass search term directly - model handles parameterization (prevents SQL injection)
       ClientesModel.get(
         "clientes",
         "*",
-        where,
+        search || "",
         perPage,
         start,
         (err, clientes) => {
-          if (err) return res.status(500).send(err);
+          if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
           if (!clientes || clientes.length === 0)
             return res
               .status(404)
@@ -98,6 +95,11 @@ const ClientesController = {
    */
   createCliente: (req, res) => {
     const { nomeCliente, documento, senha, ...otherData } = req.body;
+    
+    if (!nomeCliente || !documento) {
+      return res.status(400).send({ message: "Nombre y documento son requeridos" });
+    }
+
     const senhaCliente = senha || documento.replace(/[^\w\s]/gi, "");
     const cpf_cnpj = documento.replace(/[^\w\s]/gi, "");
     const pessoaFisica = cpf_cnpj.length === 11;
@@ -113,9 +115,9 @@ const ClientesController = {
     };
 
     ClientesModel.add("clientes", data, (err, result) => {
-      if (err) return res.status(500).send(err);
+      if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
       ClientesModel.getById(result, (err, cliente) => {
-        if (err) return res.status(500).send(err);
+        if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
         res
           .status(201)
           .send({ message: "Cliente añadido con éxito", result: cliente });
@@ -161,11 +163,11 @@ const ClientesController = {
     }
 
     ClientesModel.edit("clientes", data, "idClientes", id, (err, result) => {
-      if (err) return res.status(500).send(err);
+      if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
       if (result.affectedRows === 0)
         return res.status(404).send({ message: "Cliente no encontrado" });
       ClientesModel.getById(id, (err, cliente) => {
-        if (err) return res.status(500).send(err);
+        if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
         res
           .status(200)
           .send({ message: "Cliente editado con éxito", result: cliente });
@@ -196,23 +198,23 @@ const ClientesController = {
     const { id } = req.params;
 
     ClientesModel.getAllOsByClient(id, (err, os) => {
-      if (err) return res.status(500).send(err);
+      if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
       const osIds = os.map((o) => o.idOs);
       ClientesModel.removeClientOs(osIds, (err, result) => {
-        if (err) return res.status(500).send(err);
+        if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
 
         ClientesModel.getAllVendasByClient(id, (err, vendas) => {
-          if (err) return res.status(500).send(err);
+          if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
           const vendaIds = vendas.map((v) => v.idVendas);
           ClientesModel.removeClientVendas(vendaIds, (err, result) => {
-            if (err) return res.status(500).send(err);
+            if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
 
             ClientesModel.delete(
               "clientes",
               "idClientes",
               id,
               (err, result) => {
-                if (err) return res.status(500).send(err);
+                if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
                 if (result.affectedRows === 0)
                   return res
                     .status(404)
@@ -255,16 +257,12 @@ const ClientesController = {
   login: (req, res) => {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).send({ message: "Email y contraseña son requeridos" });
+    }
+
     ClientesModel.getClienteByEmail(email, (err, cliente) => {
-      if (err) return res.status(500).send(err);
-      // Add logging
-      //console.log("Cliente: ", cliente);
-      //console.log("Password from request: ", password);
-      //console.log("Stored hash: ", cliente.senha);
-      //console.log(
-      //  "Password match: ",
-      //  bcrypt.compareSync(password, cliente.senha)
-      //);
+      if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
 
       if (
         !cliente ||
@@ -279,11 +277,20 @@ const ClientesController = {
         { id: cliente.idClientes, email: cliente.email, rol: "cliente" },
         keys.secretOrKey,
         {
-          expiresIn: "1h",
+          expiresIn: keys.expiresIn || "1h",
         }
       );
 
-      res.status(200).send({ message: "Login exitoso", token });
+      res.status(200).send({ 
+        message: "Login exitoso", 
+        token,
+        cliente: {
+          id: cliente.idClientes,
+          nomeCliente: cliente.nomeCliente,
+          email: cliente.email,
+          rol: "cliente",
+        },
+      });
     });
   },
 
@@ -332,10 +339,8 @@ const ClientesController = {
    */
   getOsByIdClientes: (req, res) => {
     const { id } = req.params;
-    console.log("ID del cliente:", id); // Añade logs para depuración
-    console.log("Token JWT:", req.headers.authorization); // Añade logs para depuración
     ClientesModel.getAllOsByClient(id, (err, os) => {
-      if (err) return res.status(500).send(err);
+      if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
       res.status(200).send({ message: "Ordenes de servicio", result: os });
     });
   },
@@ -379,11 +384,11 @@ const ClientesController = {
   getAllComprasByClientes_id: (req, res) => {
     const { id } = req.params;
     ClientesModel.getAllComprasByClientes_id(id, (err, compras) => {
-      if (err) return res.status(500(err));
+      if (err) return res.status(500).send({ message: "Error del servidor", error: err.message }); // Fixed: was res.status(500(err))
       res.status(200).send({ message: "Compras del cliente", result: compras });
     });
   },
-  
+
   /**
    * @swagger
    * /clientes/cobranzas/{id}:
@@ -423,7 +428,7 @@ const ClientesController = {
   getAllCobranzasByClientes_id: (req, res) => {
     const { id } = req.params;
     ClientesModel.getAllCobranzasByClientes_id(id, (err, cobranzas) => {
-      if (err) return res.status(500(err));
+      if (err) return res.status(500).send({ message: "Error del servidor", error: err.message }); // Fixed: was res.status(500(err))
       res
         .status(200)
         .send({ message: "Cobranzas del cliente", result: cobranzas });

@@ -4,10 +4,12 @@ const Cliente = require("../models/clientesModel");
 const Usuario = require("../models/apiModel");
 
 module.exports = (passport) => {
-  let opts = {};
-  opts.jwtFromRequest = ExtractJwt.fromAuthHeaderAsBearerToken();
-  opts.secretOrKey = Keys.secretOrKey;
+  const opts = {
+    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+    secretOrKey: Keys.secretOrKey,
+  };
 
+  // Strategy for client authentication
   passport.use(
     "jwt-cliente",
     new JwtStrategy(opts, (jwt_payload, done) => {
@@ -24,10 +26,24 @@ module.exports = (passport) => {
     })
   );
 
+  // Strategy for user/admin authentication
+  // Supports both regular users and service tokens
   passport.use(
     "jwt-usuario",
     new JwtStrategy(opts, (jwt_payload, done) => {
-      Usuario.getById(jwt_payload.id, (err, usuario) => {
+      // Service token - bypass user lookup
+      if (jwt_payload.type === 'service_token') {
+        return done(null, {
+          idUsuarios: 0,
+          nome: 'Service Account',
+          email: jwt_payload.email,
+          rol: 'service',
+          isService: true
+        });
+      }
+
+      // Regular user token
+      Usuario.getUserById(jwt_payload.id, (err, usuario) => {
         if (err) {
           return done(err, false);
         }

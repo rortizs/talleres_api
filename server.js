@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const app = express();
 const http = require("http");
@@ -7,11 +8,12 @@ const cors = require("cors");
 const passport = require("passport");
 const swaggerRouter = require("./swagger");
 
-/**Routes import */
+/** Routes import */
 const apiRouter = require("./routes/api");
 
-// Ports server
+// Server configuration from environment
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || "0.0.0.0";
 
 // Middlewares
 app.use(logger("dev"));
@@ -24,14 +26,13 @@ app.disable("x-powered-by");
 app.set("PORT", PORT);
 app.use(express.static("public"));
 
-
 /** Calling Routes */
 app.use("/api/v1", apiRouter);
 // Swagger
 app.use("/api-docs", swaggerRouter);
 
-server.listen(PORT, "192.168.1.29" || "localhost", function () {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, HOST, function () {
+  console.log(`Server running on http://${HOST}:${PORT}`);
 });
 
 /** Routes */
@@ -39,10 +40,11 @@ app.get("/", (req, res) => {
   res.send("Route point from backend server working");
 });
 
-// Messages from server errors
+// Error handler middleware
 app.use((err, req, res, next) => {
-  console.log(err);
-  res
-    .status(err.status || 500)
-    .send({ message: err.message, status: err.status });
+  console.error("Server error:", err);
+  res.status(err.status || 500).send({
+    message: err.message || "Internal server error",
+    status: err.status || 500,
+  });
 });
