@@ -2,14 +2,21 @@ const ApiModel = require("../models/apiModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const keys = require("../config/keys");
+const { success } = require("../utils/apiResponse");
+const { sendValidationError, validatePagination } = require("../validators/common");
+const { validateCreateUsuario, validateUpdateUsuario } = require("../validators/usuarios");
 
 const UsuariosController = {
   /**
    * Get users with optional search and pagination
    */
   getUsuarios: (req, res) => {
-    const { id, search, perPage = 20, page = 0 } = req.query;
-    const start = page ? parseInt(perPage) * parseInt(page) : 0;
+    const { id } = req.query;
+    const pagination = validatePagination(req.query);
+
+    if (pagination.errors.length > 0) {
+      return sendValidationError(res, pagination.errors);
+    }
 
     if (id) {
       ApiModel.getRowById("usuarios", "idUsuarios", id, (err, usuario) => {
@@ -22,7 +29,7 @@ const UsuariosController = {
       });
     } else {
       // Pass search term directly - model handles parameterization
-      ApiModel.get("usuarios", "*", search || "", perPage, start, (err, usuarios) => {
+      ApiModel.get("usuarios", "*", pagination.search, pagination.perPage, pagination.start, (err, usuarios) => {
         if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
         if (!usuarios || usuarios.length === 0)
           return res
@@ -39,14 +46,14 @@ const UsuariosController = {
    * Create a new user
    */
   createUsuario: (req, res) => {
-    const { nome, email, senha, ...otherData } = req.body;
-    
-    if (!nome || !email || !senha) {
-      return res.status(400).send({ message: "Nombre, email y contraseña son requeridos" });
+    const validation = validateCreateUsuario(req.body || {});
+
+    if (validation.errors.length > 0) {
+      return sendValidationError(res, validation.errors);
     }
 
-    const hashedPassword = bcrypt.hashSync(senha, 10);
-    const data = { nome, email, senha: hashedPassword, ...otherData };
+    const data = { ...validation.data };
+    data.senha = bcrypt.hashSync(data.senha, 10);
 
     ApiModel.add("usuarios", data, (err, result) => {
       if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
@@ -69,12 +76,16 @@ const UsuariosController = {
    */
   updateUsuario: (req, res) => {
     const { id } = req.params;
-    const { senha, ...otherData } = req.body;
+    const validation = validateUpdateUsuario(req.body || {});
 
-    const data = { ...otherData };
+    if (validation.errors.length > 0) {
+      return sendValidationError(res, validation.errors);
+    }
 
-    if (senha) {
-      data.senha = bcrypt.hashSync(senha, 10);
+    const data = { ...validation.data };
+
+    if (data.senha) {
+      data.senha = bcrypt.hashSync(data.senha, 10);
     }
 
     ApiModel.edit("usuarios", data, "idUsuarios", id, (err, result) => {
@@ -121,9 +132,10 @@ const UsuariosController = {
       }
 
       const token = jwt.sign(
-        { id: user.idUsuarios, email: user.email, rol: "usuario" },
+        { id: user.idUsuarios, email: user.email, nome: user.nome, rol: "usuario" },
         keys.secretOrKey,
         {
+          algorithm: (keys.algorithms && keys.algorithms[0]) || "HS256",
           expiresIn: keys.expiresIn || "1h",
         }
       );
@@ -145,18 +157,11 @@ const UsuariosController = {
    * Get current authenticated user
    */
   getMe: (req, res) => {
-    const userId = req.user.id;
-
-    ApiModel.getUserById(userId, (err, user) => {
-      if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
-      if (!user) return res.status(404).send({ message: "Usuario no encontrado" });
-
-      res.status(200).send({
-        id: user.idUsuarios,
-        nome: user.nome,
-        email: user.email,
-        rol: "usuario",
-      });
+    success(res, {
+      id: req.user.id,
+      email: req.user.email,
+      nome: req.user.nome,
+      rol: req.user.rol,
     });
   },
 };

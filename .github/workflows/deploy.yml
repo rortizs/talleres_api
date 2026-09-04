@@ -1,0 +1,124 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy after CI has passed
+        required: true
+        default: main
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Digicom LXC 101
+    runs-on: [self-hosted, linux, production-lan]
+    environment:
+      name: production
+
+    steps:
+      - name: Checkout approved ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Resolve deployment commit
+        id: deploy-ref
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Require successful CI for deployment commit
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          const https = require('node:https');
+
+          const repository = process.env.GITHUB_REPOSITORY;
+          const token = process.env.GITHUB_TOKEN;
+          const sha = process.env.DEPLOY_SHA;
+
+          if (!repository || !token || !sha) {
+            console.error('Missing GitHub context for CI gate.');
+            process.exit(1);
+          }
+
+          const requestPath = `/repos/${repository}/actions/workflows/ci.yml/runs?head_sha=${sha}&status=completed&per_page=20`;
+          const request = https.request(
+            {
+              hostname: 'api.github.com',
+              method: 'GET',
+              path: requestPath,
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github+json',
+                'User-Agent': 'api-talleres-production-deploy',
+              },
+            },
+            (response) => {
+              let body = '';
+              response.setEncoding('utf8');
+              response.on('data', (chunk) => {
+                body += chunk;
+              });
+              response.on('end', () => {
+                if (response.statusCode < 200 || response.statusCode >= 300) {
+                  console.error(`Unable to read CI runs. GitHub API status: ${response.statusCode}`);
+                  process.exit(1);
+                }
+
+                const payload = JSON.parse(body);
+                const successfulRun = (payload.workflow_runs || []).find(
+                  (run) => run.head_sha === sha && run.conclusion === 'success'
+                );
+
+                if (!successfulRun) {
+                  console.error(`No successful CI run found for deployment commit ${sha}.`);
+                  process.exit(1);
+                }
+
+                console.log(`CI gate passed for ${sha}.`);
+              });
+            }
+          );
+
+          request.on('error', (error) => {
+            console.error(`Unable to query CI runs: ${error.message}`);
+            process.exit(1);
+          });
+          request.end();
+          NODE
+
+      - name: Validate deployment script syntax
+        shell: bash
+        run: bash -n scripts/deploy-production.sh
+
+      - name: Deploy production
+        shell: bash
+        env:
+          DEPLOY_SHA: ${{ steps.deploy-ref.outputs.sha }}
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_APP_PATH: ${{ secrets.PROD_APP_PATH }}
+          PROD_SSH_KEY_FILE: ${{ runner.temp }}/prod_ssh_key
+        run: |
+          set -Eeuo pipefail
+          install -m 700 -d "$(dirname "$PROD_SSH_KEY_FILE")"
+          printf '%s\n' "$PROD_SSH_KEY" > "$PROD_SSH_KEY_FILE"
+          chmod 600 "$PROD_SSH_KEY_FILE"
+          scripts/deploy-production.sh

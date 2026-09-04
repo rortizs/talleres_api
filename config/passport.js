@@ -7,6 +7,7 @@ module.exports = (passport) => {
   const opts = {
     jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
     secretOrKey: Keys.secretOrKey,
+    algorithms: Keys.algorithms || ["HS256"],
   };
 
   // Strategy for client authentication
@@ -26,20 +27,15 @@ module.exports = (passport) => {
     })
   );
 
-  // Strategy for user/admin authentication
-  // Supports both regular users and service tokens
+  // Strategy for user/admin authentication.
+  // Service tokens are rejected until a dedicated service-auth design defines claims and scope.
   passport.use(
     "jwt-usuario",
     new JwtStrategy(opts, (jwt_payload, done) => {
-      // Service token - bypass user lookup
-      if (jwt_payload.type === 'service_token') {
-        return done(null, {
-          idUsuarios: 0,
-          nome: 'Service Account',
-          email: jwt_payload.email,
-          rol: 'service',
-          isService: true
-        });
+      // Service tokens are intentionally not accepted at the user boundary.
+      // Keep this isolated until a dedicated service-auth design defines claims and scope.
+      if (jwt_payload.type === "service_token") {
+        return done(null, false);
       }
 
       // Regular user token

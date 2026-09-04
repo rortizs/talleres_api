@@ -1,12 +1,46 @@
 const db = require("../config/config");
 
+const ALLOWED_TABLES = Object.freeze({
+  usuarios: {
+    idColumns: new Set(["idUsuarios"]),
+    orderColumn: "idUsuarios",
+    columnSelectors: new Set(["*", "idUsuarios, nome, email"]),
+  },
+});
+
+function resolveTable(table) {
+  const config = ALLOWED_TABLES[table];
+  if (!config) throw new Error(`Unsupported table identifier: ${table}`);
+  return config;
+}
+
+function resolveColumnSelector(config, columns) {
+  if (!config.columnSelectors.has(columns)) throw new Error(`Unsupported column selector: ${columns}`);
+  return columns;
+}
+
+function resolveIdColumn(config, idColumn) {
+  if (!config.idColumns.has(idColumn)) throw new Error(`Unsupported id column identifier: ${idColumn}`);
+  return idColumn;
+}
+
+function guard(callback, fn) {
+  try { return fn(); } catch (error) { callback(error, null); return null; }
+}
+
+function escapeLikeSearch(search) {
+  return String(search).replace(/[\\%_]/g, "\\$&");
+}
+
 const ApiModel = {
   /**
    * Get the last row from a table
    */
   lastRow: (table, idColumn, callback) => {
+    const safeIdColumn = guard(callback, () => resolveIdColumn(resolveTable(table), idColumn));
+    if (!safeIdColumn) return;
     const query = `SELECT * FROM ?? ORDER BY ?? DESC LIMIT 1`;
-    db.query(query, [table, idColumn], (err, result) => {
+    db.query(query, [table, safeIdColumn], (err, result) => {
       if (err) return callback(err, null);
       return callback(null, result[0]);
     });
@@ -16,8 +50,10 @@ const ApiModel = {
    * Get a single row by ID
    */
   getRowById: (table, idColumn, id, callback) => {
+    const safeIdColumn = guard(callback, () => resolveIdColumn(resolveTable(table), idColumn));
+    if (!safeIdColumn) return;
     const query = `SELECT * FROM ?? WHERE ?? = ? LIMIT 1`;
-    db.query(query, [table, idColumn, id], (err, result) => {
+    db.query(query, [table, safeIdColumn, id], (err, result) => {
       if (err) return callback(err, null);
       return callback(null, result[0]);
     });
@@ -49,8 +85,8 @@ const ApiModel = {
    * Search users by name (parameterized to prevent SQL injection)
    */
   searchUsuario: (search, callback) => {
-    const query = `SELECT * FROM usuarios WHERE nome LIKE ? AND situacao = 1 LIMIT 5`;
-    db.query(query, [`%${search}%`], (err, result) => {
+    const query = `SELECT * FROM usuarios WHERE nome LIKE ? ESCAPE '\\\\' AND situacao = 1 LIMIT 5`;
+    db.query(query, [`%${escapeLikeSearch(search)}%`], (err, result) => {
       if (err) return callback(err, null);
       return callback(null, result);
     });
@@ -68,15 +104,21 @@ const ApiModel = {
   get: (table, columns, search, limit, offset, callback) => {
     let query;
     let params;
+    let config;
+
+    config = guard(callback, () => resolveTable(table));
+    if (!config) return;
+    const safeColumns = guard(callback, () => resolveColumnSelector(config, columns));
+    if (!safeColumns) return;
 
     if (search && search.trim() !== "") {
       // Parameterized search to prevent SQL injection
-      query = `SELECT ${columns} FROM ?? WHERE nome LIKE ? OR email LIKE ? ORDER BY idUsuarios DESC LIMIT ? OFFSET ?`;
-      const searchPattern = `%${search}%`;
-      params = [table, searchPattern, searchPattern, parseInt(limit), parseInt(offset)];
+      query = `SELECT ${safeColumns} FROM ?? WHERE nome LIKE ? ESCAPE '\\\\' OR email LIKE ? ESCAPE '\\\\' ORDER BY ?? DESC LIMIT ? OFFSET ?`;
+      const searchPattern = `%${escapeLikeSearch(search)}%`;
+      params = [table, searchPattern, searchPattern, config.orderColumn, parseInt(limit), parseInt(offset)];
     } else {
-      query = `SELECT ${columns} FROM ?? ORDER BY idUsuarios DESC LIMIT ? OFFSET ?`;
-      params = [table, parseInt(limit), parseInt(offset)];
+      query = `SELECT ${safeColumns} FROM ?? ORDER BY ?? DESC LIMIT ? OFFSET ?`;
+      params = [table, config.orderColumn, parseInt(limit), parseInt(offset)];
     }
 
     db.query(query, params, (err, result) => {
@@ -89,6 +131,7 @@ const ApiModel = {
    * Add a new record
    */
   add: (table, data, callback) => {
+    if (!guard(callback, () => resolveTable(table))) return;
     const query = `INSERT INTO ?? SET ?`;
     db.query(query, [table, data], (err, result) => {
       if (err) return callback(err, null);
@@ -100,8 +143,10 @@ const ApiModel = {
    * Edit an existing record
    */
   edit: (table, data, fieldID, ID, callback) => {
+    const safeFieldID = guard(callback, () => resolveIdColumn(resolveTable(table), fieldID));
+    if (!safeFieldID) return;
     const query = `UPDATE ?? SET ? WHERE ?? = ?`;
-    db.query(query, [table, data, fieldID, ID], (err, result) => {
+    db.query(query, [table, data, safeFieldID, ID], (err, result) => {
       if (err) return callback(err, null);
       return callback(null, result);
     });
@@ -111,8 +156,10 @@ const ApiModel = {
    * Delete a record
    */
   delete: (table, fieldID, ID, callback) => {
+    const safeFieldID = guard(callback, () => resolveIdColumn(resolveTable(table), fieldID));
+    if (!safeFieldID) return;
     const query = `DELETE FROM ?? WHERE ?? = ?`;
-    db.query(query, [table, fieldID, ID], (err, result) => {
+    db.query(query, [table, safeFieldID, ID], (err, result) => {
       if (err) return callback(err, null);
       return callback(null, result);
     });

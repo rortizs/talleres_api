@@ -2,6 +2,8 @@ const ClientesModel = require("../models/clientesModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const keys = require("../config/keys");
+const { sendValidationError, validatePagination } = require("../validators/common");
+const { validateCreateCliente, validateUpdateCliente } = require("../validators/clientes");
 
 const ClientesController = {
   /**
@@ -37,8 +39,12 @@ const ClientesController = {
    *                 $ref: '#/components/schemas/Cliente'
    */
   getClientes: (req, res) => {
-    const { id, search, perPage = 20, page = 0 } = req.query;
-    const start = page ? parseInt(perPage) * parseInt(page) : 0;
+    const { id } = req.query;
+    const pagination = validatePagination(req.query);
+
+    if (pagination.errors.length > 0) {
+      return sendValidationError(res, pagination.errors);
+    }
 
     if (id) {
       ClientesModel.getById(id, (err, cliente) => {
@@ -59,9 +65,9 @@ const ClientesController = {
       ClientesModel.get(
         "clientes",
         "*",
-        search || "",
-        perPage,
-        start,
+        pagination.search,
+        pagination.perPage,
+        pagination.start,
         (err, clientes) => {
           if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
           if (!clientes || clientes.length === 0)
@@ -94,25 +100,19 @@ const ClientesController = {
    *         description: Error en el servidor
    */
   createCliente: (req, res) => {
-    const { nomeCliente, documento, senha, ...otherData } = req.body;
-    
-    if (!nomeCliente || !documento) {
-      return res.status(400).send({ message: "Nombre y documento son requeridos" });
+    const validation = validateCreateCliente(req.body || {});
+
+    if (validation.errors.length > 0) {
+      return sendValidationError(res, validation.errors);
     }
 
-    const senhaCliente = senha || documento.replace(/[^\w\s]/gi, "");
-    const cpf_cnpj = documento.replace(/[^\w\s]/gi, "");
-    const pessoaFisica = cpf_cnpj.length === 11;
-
-    const data = {
-      nomeCliente,
-      documento,
-      senha: bcrypt.hashSync(senhaCliente, 10),
-      pessoa_fisica: pessoaFisica,
-      ...otherData,
-      dataCadastro: new Date(),
-      fornecedor: otherData.fornecedor ? 1 : 0,
-    };
+    const data = { ...validation.data };
+    const cpf_cnpj = String(data.documento).replace(/[^\w\s]/gi, "");
+    const senhaCliente = data.senha || cpf_cnpj;
+    data.senha = bcrypt.hashSync(senhaCliente, 10);
+    data.pessoa_fisica = cpf_cnpj.length === 11;
+    data.dataCadastro = new Date();
+    data.fornecedor = data.fornecedor ? 1 : 0;
 
     ClientesModel.add("clientes", data, (err, result) => {
       if (err) return res.status(500).send({ message: "Error del servidor", error: err.message });
@@ -152,14 +152,16 @@ const ClientesController = {
    */
   updateCliente: (req, res) => {
     const { id } = req.params;
-    const { senha, ...otherData } = req.body;
+    const validation = validateUpdateCliente(req.body || {});
 
-    const data = {
-      ...otherData,
-    };
+    if (validation.errors.length > 0) {
+      return sendValidationError(res, validation.errors);
+    }
 
-    if (senha) {
-      data.senha = bcrypt.hashSync(senha, 10);
+    const data = { ...validation.data };
+
+    if (data.senha) {
+      data.senha = bcrypt.hashSync(data.senha, 10);
     }
 
     ClientesModel.edit("clientes", data, "idClientes", id, (err, result) => {

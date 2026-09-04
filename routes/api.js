@@ -176,6 +176,7 @@ router.delete(
  *   post:
  *     summary: Inicia sesión como usuario
  *     tags: [Usuarios]
+ *     security: []
  *     requestBody:
  *       required: true
  *       content:
@@ -200,27 +201,42 @@ router.post("/login", UsuariosController.login);
 /**
  * @swagger
  * /me:
- *  get:
- *   summary: Obtiene los detalles del usuario autenticado
- *  tags: [Usuarios]
- * responses:
- *  200:
- *  description: Detalles del usuario
- * content:
- * application/json:
- * schema:
- * type: object
- * properties:
- * idUsuarios:
- * type: integer
- * nome:
- * type: string
- * email:
- * type: string
- * 401:
- * description: No autorizado
- * 500:
- * description: Error en el servidor
+ *   get:
+ *     summary: Obtiene los detalles del usuario autenticado
+ *     tags: [Usuarios]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Detalles del usuario autenticado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiSuccessEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         idUsuarios:
+ *                           type: integer
+ *                         nome:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *       401:
+ *         description: No autorizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiErrorEnvelope'
+ *       500:
+ *         description: Error en el servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiErrorEnvelope'
  */
 router.get("/me", authMiddleware, UsuariosController.getMe);
 
@@ -566,6 +582,7 @@ router.get(
  *   post:
  *     summary: Inicia sesión como cliente
  *     tags: [Clientes]
+ *     security: []
  *     requestBody:
  *       required: true
  *       content:

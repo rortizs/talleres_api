@@ -1,4 +1,5 @@
 const db = require("../config/config");
+const { withTransaction } = require("../db/transaction");
 
 const ESTADOS = ['borrador', 'enviada', 'aprobada', 'rechazada', 'vencida'];
 const TIPOS_ITEM = ['necesario', 'recomendado', 'opcion'];
@@ -514,51 +515,67 @@ const CotizacionesController = {
       return res.status(400).json({ message: "aprobado_por es requerido" });
     }
 
-    db.query(`SELECT * FROM cotizaciones WHERE id = ?`, [id], (err, result) => {
-      if (err) return res.status(500).json({ message: "Error del servidor", error: err.message });
-      if (!result || result.length === 0) {
-        return res.status(404).json({ message: "Cotización no encontrada" });
-      }
+    withTransaction((connection, done) => {
+      connection.query(`SELECT * FROM cotizaciones WHERE id = ?`, [id], (err, result) => {
+        if (err) return done(err);
+        if (!result || result.length === 0) {
+          const notFound = new Error("Cotización no encontrada");
+          notFound.statusCode = 404;
+          return done(notFound);
+        }
 
-      const cotizacion = result[0];
+        const cotizacion = result[0];
 
-      if (cotizacion.estado !== 'enviada') {
-        return res.status(400).json({ message: "Solo se pueden aprobar cotizaciones en estado 'enviada'" });
-      }
+        if (cotizacion.estado !== 'enviada') {
+          const invalidState = new Error("Solo se pueden aprobar cotizaciones en estado 'enviada'");
+          invalidState.statusCode = 400;
+          return done(invalidState);
+        }
 
-      // Marcar items seleccionados
-      if (items_seleccionados.length > 0) {
-        db.query(`UPDATE cotizacion_items SET seleccionado = 1 WHERE id IN (?) AND cotizacion_id = ?`, 
-          [items_seleccionados, id], (err) => {
-            if (err) console.error("Error marcando items:", err.message);
-          }
-        );
-      }
+        const markSelectedItems = (callback) => {
+          if (items_seleccionados.length === 0) return callback(null);
+          connection.query(
+            `UPDATE cotizacion_items SET seleccionado = 1 WHERE id IN (?) AND cotizacion_id = ?`,
+            [items_seleccionados, id],
+            callback
+          );
+        };
 
-      // Actualizar cotización
-      const updateData = {
-        estado: 'aprobada',
-        aprobado_por,
-        fecha_aprobacion: new Date()
-      };
+        markSelectedItems((itemsError) => {
+          if (itemsError) return done(itemsError);
 
-      db.query(`UPDATE cotizaciones SET ? WHERE id = ?`, [updateData, id], (err) => {
-        if (err) return res.status(500).json({ message: "Error del servidor", error: err.message });
+          const updateData = {
+            estado: 'aprobada',
+            aprobado_por,
+            fecha_aprobacion: new Date()
+          };
 
-        // Actualizar orden con el total aprobado
-        db.query(`UPDATE os SET valorTotal = ?, anticipo = ? WHERE idOs = ?`, 
-          [cotizacion.total, cotizacion.monto_anticipo, cotizacion.os_id], (err) => {
-            if (err) console.error("Error actualizando orden:", err.message);
+          connection.query(`UPDATE cotizaciones SET ? WHERE id = ?`, [updateData, id], (updateError) => {
+            if (updateError) return done(updateError);
 
-            res.status(200).json({
-              message: "Cotización aprobada exitosamente",
-              data: {
-                total_aprobado: parseFloat(cotizacion.total),
-                monto_anticipo: parseFloat(cotizacion.monto_anticipo)
+            connection.query(
+              `UPDATE os SET valorTotal = ?, anticipo = ? WHERE idOs = ?`,
+              [cotizacion.total, cotizacion.monto_anticipo, cotizacion.os_id],
+              (orderError) => {
+                if (orderError) return done(orderError);
+                return done(null, {
+                  total_aprobado: parseFloat(cotizacion.total),
+                  monto_anticipo: parseFloat(cotizacion.monto_anticipo)
+                });
               }
-            });
-          }
-        );
+            );
+          });
+        });
+      });
+    }, (err, data) => {
+      if (err) {
+        const statusCode = err.statusCode || 500;
+        return res.status(statusCode).json({ message: statusCode === 500 ? "Error del servidor" : err.message });
+      }
+
+      return res.status(200).json({
+        message: "Cotización aprobada exitosamente",
+        data
       });
     });
   },

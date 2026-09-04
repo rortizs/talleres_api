@@ -1,0 +1,46 @@
+project: api_talleres
+language: en
+artifact_store:
+  mode: hybrid
+  backends:
+    - openspec
+    - engram
+sdd:
+  default_change: stabilize-api-talleres
+  execution_mode: auto
+  delivery_strategy: auto-chain
+  review_budget_lines: 400
+  receipt_driven_development:
+    enabled: true
+    decided_by: global
+  verification:
+    e2e_required: true
+    strict_tdd: false
+project_context:
+  stack:
+    runtime: Node.js
+    language: JavaScript CommonJS
+    framework: Express 4
+    api_style: REST with Swagger/OpenAPI documentation
+    database: MySQL via mysql/mysql2 packages
+  package_manager:
+    name: npm
+    lockfile: package-lock.json
+  commands:
+    install: npm ci
+    start: npm start
+    test: npm test
+  test_capability:
+    detected: false
+    reason: package.json test script is the default placeholder that exits with status 1, and no test/spec files or Jest config were detected.
+  entrypoints:
+    application: server.js
+    routes: routes/api.js
+    swagger_ui: swagger.js
+    swagger_generator: generateSwagger.js
+  ci_cd:
+    github_actions_detected: false
+    suitability: Suitable for a future GitHub Actions workflow after adding a real automated test command; npm ci and npm start are available, but CI should not rely on the current placeholder npm test.
+notes:
+  - Do not read or persist local environment secrets; runtime configuration is loaded from dotenv at process startup.
+  - Future apply/verify phases must add or identify meaningful automated tests before claiming test coverage.

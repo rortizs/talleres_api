@@ -1,5 +1,37 @@
 const db = require("../config/config");
 
+const ALLOWED_TABLES = Object.freeze({
+  clientes: {
+    idColumns: new Set(["idClientes"]),
+    orderColumn: "idClientes",
+    columnSelectors: new Set(["*"]),
+  },
+});
+
+function resolveTable(table) {
+  const config = ALLOWED_TABLES[table];
+  if (!config) throw new Error(`Unsupported table identifier: ${table}`);
+  return config;
+}
+
+function resolveColumnSelector(config, fields) {
+  if (!config.columnSelectors.has(fields)) throw new Error(`Unsupported column selector: ${fields}`);
+  return fields;
+}
+
+function resolveIdColumn(config, idColumn) {
+  if (!config.idColumns.has(idColumn)) throw new Error(`Unsupported id column identifier: ${idColumn}`);
+  return idColumn;
+}
+
+function guard(callback, fn) {
+  try { return fn(); } catch (error) { callback(error, null); return null; }
+}
+
+function escapeLikeSearch(search) {
+  return String(search).replace(/[\\%_]/g, "\\$&");
+}
+
 const ClientesModel = {
   /**
    * Get clients with optional search (SAFE - parameterized query)
@@ -13,15 +45,21 @@ const ClientesModel = {
   get: (table, fields, search, limit, offset, callback) => {
     let query;
     let params;
+    let config;
+
+    config = guard(callback, () => resolveTable(table));
+    if (!config) return;
+    const safeFields = guard(callback, () => resolveColumnSelector(config, fields));
+    if (!safeFields) return;
 
     if (search && search.trim() !== "") {
       // Parameterized search to prevent SQL injection
-      query = `SELECT ${fields} FROM ?? WHERE nomeCliente LIKE ? OR documento LIKE ? OR telefone LIKE ? OR celular LIKE ? OR email LIKE ? OR contato LIKE ? ORDER BY idClientes DESC LIMIT ? OFFSET ?`;
-      const searchPattern = `%${search}%`;
-      params = [table, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, parseInt(limit), parseInt(offset)];
+      query = `SELECT ${safeFields} FROM ?? WHERE nomeCliente LIKE ? ESCAPE '\\\\' OR documento LIKE ? ESCAPE '\\\\' OR telefone LIKE ? ESCAPE '\\\\' OR celular LIKE ? ESCAPE '\\\\' OR email LIKE ? ESCAPE '\\\\' OR contato LIKE ? ESCAPE '\\\\' ORDER BY ?? DESC LIMIT ? OFFSET ?`;
+      const searchPattern = `%${escapeLikeSearch(search)}%`;
+      params = [table, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, config.orderColumn, parseInt(limit), parseInt(offset)];
     } else {
-      query = `SELECT ${fields} FROM ?? ORDER BY idClientes DESC LIMIT ? OFFSET ?`;
-      params = [table, parseInt(limit), parseInt(offset)];
+      query = `SELECT ${safeFields} FROM ?? ORDER BY ?? DESC LIMIT ? OFFSET ?`;
+      params = [table, config.orderColumn, parseInt(limit), parseInt(offset)];
     }
 
     db.query(query, params, (err, result) => {
@@ -56,6 +94,7 @@ const ClientesModel = {
    * Add a new record
    */
   add: (table, data, callback) => {
+    if (!guard(callback, () => resolveTable(table))) return;
     const query = `INSERT INTO ?? SET ?`;
     db.query(query, [table, data], (err, result) => {
       if (err) return callback(err, null);
@@ -67,8 +106,10 @@ const ClientesModel = {
    * Edit an existing record
    */
   edit: (table, data, fieldID, ID, callback) => {
+    const safeFieldID = guard(callback, () => resolveIdColumn(resolveTable(table), fieldID));
+    if (!safeFieldID) return;
     const query = `UPDATE ?? SET ? WHERE ?? = ?`;
-    db.query(query, [table, data, fieldID, ID], (err, result) => {
+    db.query(query, [table, data, safeFieldID, ID], (err, result) => {
       if (err) return callback(err, null);
       return callback(null, result);
     });
@@ -78,8 +119,10 @@ const ClientesModel = {
    * Delete a record
    */
   delete: (table, fieldID, ID, callback) => {
+    const safeFieldID = guard(callback, () => resolveIdColumn(resolveTable(table), fieldID));
+    if (!safeFieldID) return;
     const query = `DELETE FROM ?? WHERE ?? = ?`;
-    db.query(query, [table, fieldID, ID], (err, result) => {
+    db.query(query, [table, safeFieldID, ID], (err, result) => {
       if (err) return callback(err, null);
       return callback(null, result);
     });

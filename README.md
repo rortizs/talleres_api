@@ -162,3 +162,19 @@ arduino
 Copy code
 <http://api.taller.digicom.com.gt/api-docs>
 Con estos pasos, tu API debería estar documentada usando Swagger y la documentación debería estar accesible a través del navegador.
+
+## Continuous Integration
+
+The baseline CI workflow runs on pull requests and pushes to `main`. It checks out the repository, sets up Node.js with the npm cache, installs dependencies with `npm ci`, and runs `npm test`.
+
+The workflow intentionally does not start a MySQL service container yet because deterministic E2E fixtures are not ready. Add the service container in the same slice that introduces CI-ready test database fixtures.
+
+Local validation for this slice is `npm test` plus workflow YAML validation. Avoid running `npm ci` in this working tree while tracked `node_modules` exists; GitHub Actions runs it from a clean runner.
+
+## Production Deployment
+
+Production deploys are handled by the protected `Deploy Production` workflow in `.github/workflows/deploy.yml`. The workflow runs separately from CI, requires the protected `production` GitHub environment, and refuses to deploy unless the `CI` workflow has already succeeded for the exact commit being deployed.
+
+The deployment target is Digicom LXC 101 through the Proxmox host. Required GitHub secrets are documented in `docs/deployment.md` and must not be printed in logs: `PROD_SSH_HOST`, `PROD_SSH_PORT`, `PROD_SSH_USER`, `PROD_SSH_KEY`, and `PROD_APP_PATH`.
+
+PM2 is the selected process manager for this slice. The deploy script checks the production tree is clean, resets to the approved commit, runs `npm ci --omit=dev`, restarts PM2, and smoke-checks `/api/v1/health`. Caddy, Proxmox host configuration, MikroTik rules, and database schema are intentionally out of scope for this workflow.

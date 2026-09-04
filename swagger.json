@@ -7,9 +7,111 @@
   },
   "servers": [
     {
-      "url": "http://api.taller.digicom.com.gt/api/v1"
+      "url": "https://api.taller.digicom.com.gt/api/v1",
+      "description": "Production API over HTTPS"
+    },
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "Local development API"
     }
   ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ApiSuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "nullable": true,
+            "description": "Response payload for the requested resource."
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional human-readable success message."
+          }
+        }
+      },
+      "ApiErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "VALIDATION_ERROR"
+          },
+          "message": {
+            "type": "string",
+            "example": "Request validation failed."
+          },
+          "details": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true
+          }
+        }
+      },
+      "Cliente": {
+        "type": "object",
+        "properties": {
+          "idClientes": {
+            "type": "integer"
+          },
+          "nomeCliente": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "senha": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
   "paths": {
     "/usuarios": {
       "get": {
@@ -201,6 +303,7 @@
         "tags": [
           "Usuarios"
         ],
+        "security": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -228,6 +331,74 @@
           },
           "500": {
             "description": "Error en el servidor"
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "summary": "Obtiene los detalles del usuario autenticado",
+        "tags": [
+          "Usuarios"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles del usuario autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "idUsuarios": {
+                              "type": "integer"
+                            },
+                            "nome": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error en el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
@@ -691,6 +862,7 @@
         "tags": [
           "Clientes"
         ],
+        "security": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -721,24 +893,407 @@
           }
         }
       }
-    }
-  },
-  "components": {
-    "schemas": {
-      "Cliente": {
-        "type": "object",
-        "properties": {
-          "idClientes": {
-            "type": "integer"
+    },
+    "/ordenes": {
+      "get": {
+        "summary": "Lista órdenes con filtros y paginación",
+        "tags": [
+          "Ordenes"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtrar por estados (comma separated)"
           },
-          "nomeCliente": {
-            "type": "string"
+          {
+            "in": "query",
+            "name": "tecnico_id",
+            "schema": {
+              "type": "integer"
+            }
           },
-          "email": {
-            "type": "string"
+          {
+            "in": "query",
+            "name": "cliente_id",
+            "schema": {
+              "type": "integer"
+            }
           },
-          "senha": {
-            "type": "string"
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "perPage",
+            "schema": {
+              "type": "integer"
+            },
+            "default": 20
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            },
+            "default": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de órdenes"
+          }
+        }
+      },
+      "post": {
+        "summary": "Crea una nueva orden",
+        "tags": [
+          "Ordenes"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Orden creada exitosamente"
+          }
+        }
+      }
+    },
+    "/ordenes/{id}": {
+      "get": {
+        "summary": "Obtiene detalle completo de una orden",
+        "tags": [
+          "Ordenes"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle de la orden"
+          },
+          "404": {
+            "description": "Orden no encontrada"
+          }
+        }
+      },
+      "put": {
+        "summary": "Actualiza una orden",
+        "tags": [
+          "Ordenes"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orden actualizada"
+          }
+        }
+      }
+    },
+    "/ordenes/{id}/estado": {
+      "put": {
+        "summary": "Cambia el estado de una orden",
+        "tags": [
+          "Ordenes"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "estado": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado actualizado"
+          }
+        }
+      }
+    },
+    "/ordenes/{id}/asignar": {
+      "put": {
+        "summary": "Asigna un técnico a la orden",
+        "tags": [
+          "Ordenes"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tecnico_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Técnico asignado"
+          }
+        }
+      }
+    },
+    "/ordenes/{id}/equipo": {
+      "put": {
+        "summary": "Actualiza diagnóstico/solución del equipo",
+        "tags": [
+          "Ordenes"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Equipo actualizado"
+          }
+        }
+      }
+    },
+    "/ordenes/{id}/historial": {
+      "get": {
+        "summary": "Obtiene el historial de cambios de una orden",
+        "tags": [
+          "Ordenes"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historial de la orden"
+          }
+        }
+      }
+    },
+    "/licencias": {
+      "get": {
+        "summary": "Lista licencias con filtros",
+        "tags": [
+          "Licencias"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "activas",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "categoria",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de licencias"
+          }
+        }
+      },
+      "post": {
+        "summary": "Crea una nueva licencia",
+        "tags": [
+          "Licencias"
+        ],
+        "responses": {
+          "201": {
+            "description": "Licencia creada"
+          }
+        }
+      }
+    },
+    "/licencias/{id}": {
+      "get": {
+        "summary": "Obtiene detalle de una licencia",
+        "tags": [
+          "Licencias"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle de la licencia"
+          }
+        }
+      },
+      "put": {
+        "summary": "Actualiza una licencia",
+        "tags": [
+          "Licencias"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Licencia actualizada"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Elimina una licencia",
+        "tags": [
+          "Licencias"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Licencia eliminada"
+          }
+        }
+      }
+    },
+    "/licencias/{id}/toggle": {
+      "put": {
+        "summary": "Activa/desactiva una licencia",
+        "tags": [
+          "Licencias"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado de licencia cambiado"
+          }
+        }
+      }
+    },
+    "/dashboard/stats": {
+      "get": {
+        "summary": "Estadísticas para el dashboard",
+        "tags": [
+          "Dashboard"
+        ],
+        "responses": {
+          "200": {
+            "description": "Estadísticas del sistema"
+          }
+        }
+      }
+    },
+    "/dashboard/resumen": {
+      "get": {
+        "summary": "Resumen general del sistema",
+        "tags": [
+          "Dashboard"
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumen general"
           }
         }
       }
